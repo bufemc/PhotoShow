@@ -1,11 +1,11 @@
 <?php
 /**
  * This file implements the class Settings.
- * 
+ *
  * PHP versions 4 and 5
  *
  * LICENSE:
- * 
+ *
  * This file is part of PhotoShow.
  *
  * PhotoShow is free software: you can redistribute it and/or modify
@@ -47,10 +47,10 @@ class Settings extends Page
 
 	/// Directory where the photos are stored
 	static public $photos_dir;
-	
+
 	/// Directory where the thumbs are stored
 	static public $thumbs_dir;
-	
+
 	/// Directory where the configuration files are stored
 	static public $conf_dir;
 
@@ -95,12 +95,15 @@ class Settings extends Page
 
 	/// Remove registering options
 	static public $noregister	=	false;
-    
+
 	/// Force https on login/register screens
 	static public $forcehttps	    =	false;
 
 	/// Remove download options
 	static public $nodownload	=	false;
+
+	/// Overwrite on upload
+	static public $overwriteonupload = false;
 
 	/// Max number of comments
 	static public $max_comments	=	50;
@@ -136,7 +139,7 @@ class Settings extends Page
 
 	/// Available localizations
 	static public $ava_loc 	=	array();
-	
+
 	/// Available themes
 	static public $ava_themes 	=	array();
 
@@ -152,20 +155,29 @@ class Settings extends Page
 	static public $tracking_code_include = NULL;
 
 	/*** Video ***/
-	
+
 	///Video encode enable/disable
 	static public $encode_video	=	false;
-	
+
 	/// FFMPEg path (unix : /usr/bin/ffmpeg or win : c:\ffmpeg.exe)
 	static public $ffmpeg_path 		=	"/usr/bin/ffmpeg";
-	
+
 	///FFMPEG Option
 	static public $ffmpeg_option	=	"-threads 4 -vcodec libx264 -acodec libfdk_aac";
+
+	/*** Image ***/
+
+	/// Image rotate enable/disable
+	static public $rotate_image	=	true;
+
+	/// ExifTran path
+	static public $exiftran_path =	"/usr/bin/exiftran";
+
 
 
 	/**
 	 * Create Settings page
-	 * 
+	 *
 	 */
 	public function __construct(){
 		$this->folders = Menu::list_dirs(Settings::$photos_dir,true);
@@ -189,7 +201,7 @@ class Settings extends Page
 		/// Set default values for $config
 		$config->timezone = "Europe/Paris";
 
-		/// Load config.php file 
+		/// Load config.php file
 		if (!isset($config_file)){
 			$config_file		=	realpath(dirname(__FILE__)."/../../config.php");
 		}
@@ -232,7 +244,7 @@ class Settings extends Page
 
 		// Now, check that this stuff exists.
 		if(!file_exists(Settings::$photos_dir)){
-			if(! @mkdir(Settings::$photos_dir,0750,true)){	
+			if(! @mkdir(Settings::$photos_dir,0750,true)){
 				throw new Exception("PHOTOS dir '".Settings::$photos_dir."' doesn't exist and couldn't be created !");
 			}
 		}
@@ -279,11 +291,11 @@ class Settings extends Page
 			Settings::$nocomments	=	isset($admin_settings['nocomments']);
 			Settings::$nodescription	=	isset($admin_settings['nodescription']);
 			Settings::$nodownload	=	isset($admin_settings['nodownload']);
+			Settings::$overwriteonupload	=	isset($admin_settings['overwriteonupload']);
 			Settings::$l33t 		=	isset($admin_settings['l33t']);
 			Settings::$reverse_menu	=	isset($admin_settings['reverse_menu']);
 			Settings::$rss	=	isset($admin_settings['rss']);
 			Settings::$button_title	=	isset($admin_settings['button_title']);
-
 
 
 			if(isset($admin_settings['max_comments'])){
@@ -297,7 +309,7 @@ class Settings extends Page
 			if(isset($admin_settings['loc'])){
 				Settings::$loc = $admin_settings['loc'];
 			}
-			
+
 			if(isset($admin_settings['user_theme'])){
 				Settings::$user_theme = $admin_settings['user_theme'];
 			}
@@ -309,6 +321,12 @@ class Settings extends Page
 			}
 			if(isset($admin_settings['ffmpeg_option'])){
 				Settings::$ffmpeg_option	=	$admin_settings['ffmpeg_option'];
+			}
+
+			/*** Image ***/
+			Settings::$rotate_image	=	isset($admin_settings['rotate_image']);
+			if(isset($admin_settings['exiftran_path'])){
+				Settings::$ffmpeg_path	=	$admin_settings['exiftran_path'];
 			}
 		}
 
@@ -355,7 +373,7 @@ class Settings extends Page
 
 	/**
 	 * Returns value of $t in selected language
-	 * 
+	 *
 	 */
 	static public function _($a,$t){
 		if(isset(Settings::$loc_chosen[$a][$t])){
@@ -370,7 +388,7 @@ class Settings extends Page
 
 		return $t;
 	}
-	
+
 	static public function toRegexp($i) {
 		return "!" . $i . "!";
 	}
@@ -379,7 +397,7 @@ class Settings extends Page
 		$t 		= strtolower($t);
 		$from 	= array("a", "e", "f", "g","l", "o", "s", "t","h", "c", "m","n", "r", "v", "w");
 		$to 	= array("4", "3", "ph", "9","1", "0", "5",  "7",'|-|', '(', '|\/|','|\|', '|2', '\/', '\/\/');
-    	
+
     	return preg_replace(array_map(array(Settings,toRegexp), $from), $to, $t);
 	}
 
@@ -401,12 +419,15 @@ class Settings extends Page
             "nocomments",
             "nodescription",
             "nodownload",
+						"overwriteonupload",
             "loc",
             "l33t",
             "reverse_menu",
 	    "encode_video",
 	    "ffmpeg_path",
 	    "ffmpeg_option",
+			"rotate_image",
+			"exiftran_path",
 	    "user_theme",
 	    "thumbs_size",
    	    "rss",
@@ -432,8 +453,8 @@ class Settings extends Page
 	public static function gener_all($folder){
 		$files = Menu::list_files($folder,true);
 
-		if( !ini_get('safe_mode') ){ 
-			set_time_limit(1200); 
+		if( !ini_get('safe_mode') ){
+			set_time_limit(1200);
 		}
 
 		foreach($files as $file){
@@ -480,7 +501,7 @@ class Settings extends Page
 			}
 			echo ">".substr($p,0,-4)."</option>";
 		}
-		echo "</select>";			
+		echo "</select>";
 		echo "</div>";
 
 		/// User Theme
@@ -495,11 +516,11 @@ class Settings extends Page
 			}
 			echo ">$p</option>";
 		}
-		echo "</select>";			
+		echo "</select>";
 		echo "</div>";
 
 		echo "<h2>".Settings::_("settings","options")."</h2>";
-		$options = array("noregister","forcehttps","nocomments","nodescription","nodownload","reverse_menu","l33t","rss","button_title");
+		$options = array("noregister","forcehttps","nocomments","nodescription","nodownload","overwriteonupload","reverse_menu","l33t","rss","button_title");
 		foreach($options as $val){
 			$c = (Settings::$$val)?"checked":"";
 				echo "<div class='pure-controls'><label><input type='checkbox' name='$val' $c> ".Settings::_("settings",$val)."</label></div>\n";
@@ -542,7 +563,7 @@ class Settings extends Page
 		echo "<label><input type='checkbox' name='encode_video' $c> ".Settings::_("settings","encode_video")."</label>\n";
 		echo "</div>";
 
-		
+
 		/// FFmpeg Path
 		echo "<div class='pure-control-group'>
 					<label>".Settings::_("settings","ffmpeg_path")."</label>
@@ -555,6 +576,20 @@ class Settings extends Page
 					<input type='text' name='ffmpeg_option' value=\"".htmlentities(Settings::$ffmpeg_option, ENT_QUOTES ,'UTF-8')."\">
 				</div>";
 
+		echo "<h2>".Settings::_("settings","image")."</h2>";
+
+		/// Rotate Image
+		echo "<span>".Settings::_("settings","image_comment")."</span>";
+		echo "<div class='pure-controls'>";
+		$c = (Settings::$rotate_image)?"checked":"";
+		echo "<label><input type='checkbox' name='rotate_image' $c> ".Settings::_("settings","rotate_image")."</label>\n";
+		echo "</div>";
+
+		/// ExifTran Path
+		echo "<div class='pure-control-group'>
+					<label>".Settings::_("settings","exiftran_path")."</label>
+					<input type='text' name='exiftran_path' value=\"".htmlentities(Settings::$exiftran_path, ENT_QUOTES ,'UTF-8')."\">
+				</div>\n";
 
 		echo "<div class='pure-controls'><input type='submit' class='pure-button pure-button-primary' value='".Settings::_("settings","submit")."'/></div>\n";
 

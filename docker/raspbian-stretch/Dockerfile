@@ -1,5 +1,6 @@
-FROM debian:wheezy
-MAINTAINER Anthony Prades <toony.github@chezouam.net>
+FROM arm32v7/debian:stretch
+MAINTAINER astyonax <astyonax@gmail.com>
+# raspbian Dockerfile inspired from CYOSP's debian Dockerfile
 
 RUN apt-get update
 RUN DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
@@ -13,9 +14,10 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -yq \
 	openssh-client \
 	less \
 	nginx \
-	php5-fpm \
-	php5-gd \
-	libgd2-xpm \
+	php-fpm \
+	php-gd \
+	php-xml \
+	libgd-dev \
 	supervisor
     
 RUN git clone https://github.com/thibaud-rohmer/PhotoShow.git /var/www/PhotoShow
@@ -31,18 +33,23 @@ RUN mkdir -p /opt/PhotoShow/generated
 RUN chown -R www-data:www-data /opt/PhotoShow/Photos /opt/PhotoShow/generated
 
 RUN mkdir -p /root/.ssh
-ADD photoshow.key.pub /root/.ssh/authorized_keys
+#ADD photoshow.key.pub /root/.ssh/authorized_keys
 
-ADD fpm-photoshow.conf /etc/php5/fpm/pool.d/photoshow.conf
-RUN sed -i -e 's/^.\+daemonize.\+$/daemonize = no/' /etc/php5/fpm/php-fpm.conf
+RUN mkdir -p /etc/nginx/ssl
+ADD nginx.crt /etc/nginx/ssl/nginx.crt
+ADD nginx.key /etc/nginx/ssl/nginx.key
+
+
+ADD fpm-photoshow.conf /etc/php/7.0/fpm/pool.d/photoshow.conf
+RUN sed -i -e 's/^.\+daemonize.\+$/daemonize = no/' /etc/php/7.0/fpm/php-fpm.conf
 
 ADD photoshow.nginx /etc/nginx/sites-available/photoshow
 RUN rm -f /etc/nginx/sites-enabled/default
 RUN ln -s /etc/nginx/sites-available/photoshow /etc/nginx/sites-enabled/photoshow
 RUN echo "daemon off;" >> /etc/nginx/nginx.conf
 
-RUN mkdir -p /var/run/sshd
+RUN mkdir -p /var/run/sshd /var/run/php
 
 VOLUME ["/opt/PhotoShow", "/var/log"]
-EXPOSE 80 22
+EXPOSE 443 22
 CMD /usr/bin/supervisord
